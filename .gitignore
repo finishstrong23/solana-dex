@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+target/
+dist/
+frontend/.next/
+frontend/out/
+
+# Environment
+.env
+.env.local
+frontend/.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Anchor
+.anchor/
+test-ledger/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
