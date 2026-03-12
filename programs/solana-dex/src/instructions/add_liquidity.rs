@@ -173,12 +173,14 @@ pub fn handler(
         .checked_add(lp_tokens_to_mint)
         .ok_or(DexError::MathOverflow)?;
 
+    let clock = Clock::get()?;
     emit!(LiquidityAdded {
         pool: pool.key(),
         user: ctx.accounts.user.key(),
         amount_a,
         amount_b,
         lp_tokens_minted: lp_tokens_to_mint,
+        timestamp: clock.unix_timestamp,
     });
 
     Ok(())

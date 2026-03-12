@@ -228,12 +228,20 @@ pub fn handler(
     }
 
     let clock = Clock::get()?;
+    let (token_in_mint, token_out_mint) = match swap_direction {
+        SwapDirection::AToB => (pool.token_a_mint, pool.token_b_mint),
+        SwapDirection::BToA => (pool.token_b_mint, pool.token_a_mint),
+    };
     emit!(SwapExecuted {
         pool: pool.key(),
         user: ctx.accounts.user.key(),
+        token_in_mint,
+        token_out_mint,
         amount_in,
         amount_out,
         fee: total_fee as u64,
+        reserve_a_after: pool.reserve_a,
+        reserve_b_after: pool.reserve_b,
         swap_direction: match swap_direction {
             SwapDirection::AToB => 0,
             SwapDirection::BToA => 1,

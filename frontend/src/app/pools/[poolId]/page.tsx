@@ -8,7 +8,7 @@ export default function PoolDetailPage() {
   const poolId = params.poolId as string;
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <PoolDetail poolId={poolId} />
     </div>
   );

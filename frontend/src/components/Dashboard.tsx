@@ -1,39 +1,41 @@
 "use client";
 
 import { usePools } from "@/hooks/usePools";
+import { useProtocolStats } from "@/hooks/useIndexerApi";
 
 export default function Dashboard() {
   const { pools } = usePools();
+  const { data: protocolStats } = useProtocolStats();
 
-  // Aggregate stats
-  const totalTvl = pools.reduce((sum, p) => sum + p.tvl, 0);
-  const totalVolume24h = pools.reduce((sum, p) => sum + p.volume24h, 0);
-  const totalFees24h = pools.reduce(
+  // Use indexer data when available, fall back to local calculations
+  const totalTvl = protocolStats?.total_tvl ?? pools.reduce((sum, p) => sum + p.tvl, 0);
+  const totalVolume24h = protocolStats?.total_24h_volume ?? pools.reduce((sum, p) => sum + p.volume24h, 0);
+  const totalFees24h = protocolStats?.total_24h_fees ?? pools.reduce(
     (sum, p) => sum + (p.volume24h * p.feeRate) / 10000,
     0
   );
+  const totalPools = protocolStats?.total_pools ?? pools.length;
+  const totalSwaps = protocolStats?.total_swaps ?? 0;
 
   return (
     <div>
       {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <MetricCard
           title="Total Value Locked"
           value={`$${totalTvl.toLocaleString()}`}
-          change="+12.5%"
-          positive
         />
         <MetricCard
           title="24h Volume"
           value={`$${totalVolume24h.toLocaleString()}`}
-          change="+8.3%"
-          positive
         />
         <MetricCard
           title="24h Fees Earned"
           value={`$${totalFees24h.toLocaleString()}`}
-          change="+15.2%"
-          positive
+        />
+        <MetricCard
+          title="Total Swaps"
+          value={totalSwaps.toLocaleString()}
         />
       </div>
 
@@ -44,7 +46,7 @@ export default function Dashboard() {
           <div className="space-y-3">
             <InfoRow label="Network" value="Solana Devnet" />
             <InfoRow label="AMM Type" value="Constant Product (x * y = k)" />
-            <InfoRow label="Total Pools" value={pools.length.toString()} />
+            <InfoRow label="Total Pools" value={totalPools.toString()} />
             <InfoRow label="Protocol Fee" value="0.05% (20% of trading fee)" />
           </div>
         </div>
@@ -74,41 +76,48 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Top Pools */}
+      {/* Top Pools by Volume */}
       <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6">
-        <h3 className="text-lg font-semibold mb-4">Top Pools by TVL</h3>
+        <h3 className="text-lg font-semibold mb-4">Top Pools by 24h Volume</h3>
         {pools.length === 0 ? (
           <p className="text-dark-400 text-center py-8">
             No pools created yet
           </p>
         ) : (
-          <div className="space-y-3">
-            {pools
-              .sort((a, b) => b.tvl - a.tvl)
-              .slice(0, 5)
-              .map((pool, i) => (
-                <div
-                  key={pool.address}
-                  className="flex items-center justify-between py-3 border-b border-dark-700 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-dark-500 text-sm w-6">
-                      #{i + 1}
-                    </span>
+          <div>
+            {/* Header */}
+            <div className="grid grid-cols-5 gap-4 px-4 py-2 text-xs text-dark-400 font-medium border-b border-dark-700">
+              <span>#</span>
+              <span>Pool</span>
+              <span className="text-right">TVL</span>
+              <span className="text-right">24h Volume</span>
+              <span className="text-right">APR</span>
+            </div>
+            <div className="space-y-1 mt-1">
+              {[...pools]
+                .sort((a, b) => b.volume24h - a.volume24h)
+                .slice(0, 10)
+                .map((pool, i) => (
+                  <div
+                    key={pool.address}
+                    className="grid grid-cols-5 gap-4 px-4 py-3 rounded-lg hover:bg-dark-800/50 transition-colors"
+                  >
+                    <span className="text-dark-500 text-sm">#{i + 1}</span>
                     <span className="font-medium">
                       {pool.tokenASymbol}/{pool.tokenBSymbol}
                     </span>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold">
+                    <span className="text-right">
                       ${pool.tvl.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-green-400">
-                      {pool.apr.toFixed(1)}% APR
-                    </div>
+                    </span>
+                    <span className="text-right text-dark-300">
+                      ${pool.volume24h.toLocaleString()}
+                    </span>
+                    <span className="text-right text-green-400 font-medium">
+                      {pool.apr.toFixed(1)}%
+                    </span>
                   </div>
-                </div>
-              ))}
+                ))}
+            </div>
           </div>
         )}
       </div>
@@ -119,25 +128,14 @@ export default function Dashboard() {
 function MetricCard({
   title,
   value,
-  change,
-  positive,
 }: {
   title: string;
   value: string;
-  change: string;
-  positive: boolean;
 }) {
   return (
     <div className="bg-dark-900 border border-dark-700 rounded-2xl p-6">
       <div className="text-sm text-dark-400 mb-1">{title}</div>
-      <div className="text-2xl font-bold mb-2">{value}</div>
-      <div
-        className={`text-sm font-medium ${
-          positive ? "text-green-400" : "text-red-400"
-        }`}
-      >
-        {change} (24h)
-      </div>
+      <div className="text-2xl font-bold">{value}</div>
     </div>
   );
 }

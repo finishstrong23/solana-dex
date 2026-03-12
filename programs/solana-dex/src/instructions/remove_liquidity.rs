@@ -164,12 +164,14 @@ pub fn handler(
         .checked_sub(lp_token_amount)
         .ok_or(DexError::MathOverflow)?;
 
+    let clock = Clock::get()?;
     emit!(LiquidityRemoved {
         pool: pool.key(),
         user: ctx.accounts.user.key(),
         amount_a,
         amount_b,
         lp_tokens_burned: lp_token_amount,
+        timestamp: clock.unix_timestamp,
     });
 
     Ok(())
