@@ -8,7 +8,10 @@ export const PROGRAM_ID = new PublicKey(
 );
 
 // Minimal IDL for type generation - replace with generated IDL after build
-const IDL: Idl = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const IDL: Idl = ({
+  address: process.env.NEXT_PUBLIC_PROGRAM_ID || "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS",
+  metadata: { name: "solana_dex", version: "0.1.0", spec: "0.1.0" },
   version: "0.1.0",
   name: "solana_dex",
   instructions: [
@@ -143,13 +146,14 @@ const IDL: Idl = {
     { code: 6006, name: "MathOverflow", msg: "Math overflow" },
     { code: 6007, name: "NoProtocolFees", msg: "No protocol fees to collect" },
   ],
-};
+}) as unknown as Idl;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getProgram(connection: Connection, wallet: any): Program {
   const provider = new AnchorProvider(connection, wallet, {
     commitment: "confirmed",
   });
-  return new Program(IDL, PROGRAM_ID, provider);
+  return new Program(IDL, provider);
 }
 
 export function findPoolPda(
