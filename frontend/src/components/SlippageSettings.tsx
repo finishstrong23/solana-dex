@@ -32,7 +32,12 @@ export default function SlippageSettings({
           <input
             type="number"
             value={slippage}
-            onChange={(e) => setSlippage(parseFloat(e.target.value) || 0)}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              if (isNaN(val) || val < 0) return setSlippage(0.1);
+              if (val > 50) return setSlippage(50);
+              setSlippage(val);
+            }}
             className="w-full px-3 py-1.5 bg-dark-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary-500"
             step="0.1"
             min="0.01"

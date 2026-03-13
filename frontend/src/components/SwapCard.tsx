@@ -19,7 +19,9 @@ export default function SwapCard() {
   const [txSignature, setTxSignature] = useState("");
   const [direction, setDirection] = useState<"AtoB" | "BtoA">("AtoB");
 
-  const { swap, estimateOutput, loading, priceImpact } = useSwap();
+  const { swap, estimateOutput, loading, priceImpact, error: swapError } =
+    useSwap();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Estimate output when input changes
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function SwapCard() {
   const handleSwap = useCallback(async () => {
     if (!amountIn || !tokenA || !tokenB) return;
 
+    setErrorMsg(null);
     try {
       const sig = await swap(
         tokenA,
@@ -52,6 +55,8 @@ export default function SwapCard() {
       setAmountIn("");
       setAmountOut("");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Swap failed";
+      setErrorMsg(msg);
       console.error("Swap failed:", err);
     }
   }, [amountIn, tokenA, tokenB, slippage, direction, swap]);
@@ -187,6 +192,13 @@ export default function SwapCard() {
               <span className="text-dark-400">Slippage Tolerance</span>
               <span className="text-dark-300">{slippage}%</span>
             </div>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {errorMsg && (
+          <div className="mt-3 p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
+            <p className="text-sm text-red-400">{errorMsg}</p>
           </div>
         )}
 
