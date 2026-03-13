@@ -2,14 +2,32 @@
 
 import { useState, useCallback } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey, Transaction } from "@solana/web3.js";
-import { getProgram } from "@/utils/program";
+import { PublicKey } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
+import { getProgram, PROGRAM_ID } from "@/utils/program";
+
+const SPL_TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+);
+
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+);
+
+function deriveAta(mint: PublicKey, owner: PublicKey): PublicKey {
+  const [address] = PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), SPL_TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return address;
+}
 
 export function useSwap() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const [loading, setLoading] = useState(false);
   const [priceImpact, setPriceImpact] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const estimateOutput = useCallback(
     (
@@ -18,25 +36,39 @@ export function useSwap() {
       amountIn: number,
       direction: "AtoB" | "BtoA"
     ): number => {
-      // In production, fetch pool state from chain
-      // For now, use a mock calculation
-      const mockReserveA = 1000;
-      const mockReserveB = 100000;
+      if (amountIn <= 0) {
+        setPriceImpact(0);
+        return 0;
+      }
+
+      // Mock reserves for UI estimation when pool data isn't loaded from chain
+      const mockReserveA: number = 1000;
+      const mockReserveB: number = 100000;
       const feeRate = 25; // 0.25%
 
-      const reserveIn = direction === "AtoB" ? mockReserveA : mockReserveB;
-      const reserveOut = direction === "AtoB" ? mockReserveB : mockReserveA;
+      const reserveIn: number =
+        direction === "AtoB" ? mockReserveA : mockReserveB;
+      const reserveOut: number =
+        direction === "AtoB" ? mockReserveB : mockReserveA;
+
+      if (reserveIn <= 0 || reserveOut <= 0) {
+        setPriceImpact(0);
+        return 0;
+      }
 
       const fee = (amountIn * feeRate) / 10000;
       const effectiveAmountIn = amountIn - fee;
       const amountOut =
         (reserveOut * effectiveAmountIn) / (reserveIn + effectiveAmountIn);
 
-      // Calculate price impact
+      // Calculate price impact safely
       const spotPrice = reserveOut / reserveIn;
-      const executionPrice = amountOut / amountIn;
-      const impact = Math.abs((spotPrice - executionPrice) / spotPrice) * 100;
-      setPriceImpact(impact);
+      const executionPrice = amountIn > 0 ? amountOut / amountIn : 0;
+      const impact =
+        spotPrice > 0
+          ? Math.abs((spotPrice - executionPrice) / spotPrice) * 100
+          : 0;
+      setPriceImpact(isFinite(impact) ? impact : 0);
 
       return amountOut;
     },
@@ -55,8 +87,18 @@ export function useSwap() {
         throw new Error("Wallet not connected");
       }
 
+      if (amountIn <= 0) {
+        throw new Error("Amount must be greater than zero");
+      }
+
+      if (slippage < 0 || slippage > 50) {
+        throw new Error("Slippage must be between 0% and 50%");
+      }
+
       setLoading(true);
+      setError(null);
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const program = getProgram(connection, wallet as any);
 
         // Calculate min output with slippage
@@ -69,31 +111,55 @@ export function useSwap() {
         const minOut = Math.floor(estimatedOut * (1 - slippage / 100));
 
         // Find pool PDA
+        const tokenAKey = new PublicKey(tokenAMint);
+        const tokenBKey = new PublicKey(tokenBMint);
         const [poolPda] = PublicKey.findProgramAddressSync(
           [
             Buffer.from("pool"),
-            new PublicKey(tokenAMint).toBuffer(),
-            new PublicKey(tokenBMint).toBuffer(),
+            tokenAKey.toBuffer(),
+            tokenBKey.toBuffer(),
           ],
-          program.programId
+          PROGRAM_ID
         );
 
-        // In production, fetch actual pool account to get vault addresses
-        // For now, return a mock signature
-        console.log("Swap params:", {
-          pool: poolPda.toBase58(),
-          amountIn,
-          minOut,
-          direction,
-        });
+        // Fetch pool account to get vault addresses
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const poolAccount: any = await (program.account as any)["Pool"].fetch(
+          poolPda
+        );
 
-        // TODO: Build and send actual transaction
-        // const tx = await program.methods
-        //   .swap(new BN(amountIn * 1e6), new BN(minOut * 1e6), { [direction === "AtoB" ? "aToB" : "bToA"]: {} })
-        //   .accounts({...})
-        //   .rpc();
+        // Get user's associated token accounts
+        const userTokenA = deriveAta(tokenAKey, wallet.publicKey);
+        const userTokenB = deriveAta(tokenBKey, wallet.publicKey);
 
-        return "mock_signature_" + Date.now();
+        // Convert amounts to lamports (assuming 6 decimals for SPL tokens)
+        const amountInLamports = new BN(Math.floor(amountIn * 1e6));
+        const minOutLamports = new BN(Math.floor(minOut * 1e6));
+
+        // Build swap direction enum
+        const swapDirection =
+          direction === "AtoB" ? { aToB: {} } : { bToA: {} };
+
+        // Execute the swap instruction on-chain
+        const tx = await program.methods
+          .swap(amountInLamports, minOutLamports, swapDirection)
+          .accounts({
+            pool: poolPda,
+            userTokenA,
+            userTokenB,
+            tokenAVault: poolAccount.tokenAVault,
+            tokenBVault: poolAccount.tokenBVault,
+            user: wallet.publicKey,
+            tokenProgram: SPL_TOKEN_PROGRAM_ID,
+          })
+          .rpc();
+
+        return tx;
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Swap failed";
+        setError(message);
+        throw err;
       } finally {
         setLoading(false);
       }
@@ -101,5 +167,5 @@ export function useSwap() {
     [connection, wallet, estimateOutput]
   );
 
-  return { swap, estimateOutput, loading, priceImpact };
+  return { swap, estimateOutput, loading, priceImpact, error };
 }

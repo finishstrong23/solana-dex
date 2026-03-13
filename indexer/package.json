@@ -1,5 +1,5 @@
 {
-  "name": "starforge-dex-indexer",
+  "name": "solana-dex-indexer",
   "version": "1.0.0",
   "description": "Solana DEX indexer service - listens to on-chain events and stores them in SQLite",
   "main": "dist/index.js",

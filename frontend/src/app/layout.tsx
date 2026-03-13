@@ -11,6 +11,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <title>SolanaDEX - Decentralized Exchange</title>
+        <meta
+          name="description"
+          content="Decentralized exchange on Solana with constant product AMM"
+        />
+      </head>
       <body className="bg-dark-950 text-white">
         <WalletProviders>
           <div className="flex min-h-screen">

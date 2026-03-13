@@ -9,7 +9,7 @@ const DEFAULT_API_PORT = 3001;
 
 async function main(): Promise<void> {
   console.log('========================================');
-  console.log('  Starforge DEX Indexer');
+  console.log('  Solana DEX Indexer');
   console.log('========================================');
 
   // Configuration from environment variables
